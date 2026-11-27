@@ -1,0 +1,261 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Discovery-safe public profile for an 18+ PAIRLY member. Never contains email, phone, or exact GPS coordinates.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated Firebase UID of the user."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public display name (2 to 50 chars)."
+        },
+        "age": {
+          "type": "integer",
+          "description": "Verified adult age (18 to 100)."
+        },
+        "birthYear": {
+          "type": "integer",
+          "description": "Year of birth used for 18+ eligibility check."
+        },
+        "city": {
+          "type": "string",
+          "description": "Indian city of residence."
+        },
+        "state": {
+          "type": "string",
+          "description": "Indian state or union territory."
+        },
+        "bio": {
+          "type": "string",
+          "description": "Short biography (up to 500 chars)."
+        },
+        "relationshipPreference": {
+          "type": "string",
+          "enum": ["Long-term", "Dating", "Friends", "Exploring", "Open to all"],
+          "description": "Relationship intention."
+        },
+        "interests": {
+          "type": "array",
+          "description": "Up to 12 interest tags."
+        },
+        "hobbies": {
+          "type": "array",
+          "description": "Up to 12 hobby tags."
+        },
+        "languages": {
+          "type": "array",
+          "description": "Up to 10 spoken languages."
+        },
+        "prompts": {
+          "type": "array",
+          "description": "Up to 5 profile prompt Q&A objects."
+        },
+        "photos": {
+          "type": "array",
+          "description": "Up to 6 profile photo payloads or URLs."
+        },
+        "hidden": {
+          "type": "boolean",
+          "description": "When true, pauses discovery visibility."
+        },
+        "incognito": {
+          "type": "boolean",
+          "description": "When true, profile is hidden from general discovery and shown only after liking."
+        },
+        "adultVerified": {
+          "type": "boolean",
+          "description": "True when 18+ eligibility check passed."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp on last update."
+        }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "age",
+        "birthYear",
+        "city",
+        "state",
+        "bio",
+        "relationshipPreference",
+        "interests",
+        "hobbies",
+        "languages",
+        "prompts",
+        "photos",
+        "hidden",
+        "incognito",
+        "adultVerified",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PrivateAccount": {
+      "title": "PrivateAccount",
+      "description": "Strictly owner-only PII and discovery filter preferences.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "dobIso": {
+          "type": "string"
+        },
+        "minAgeFilter": {
+          "type": "integer"
+        },
+        "maxAgeFilter": {
+          "type": "integer"
+        },
+        "distanceTier": {
+          "type": "string",
+          "enum": ["Same City", "Same State", "Pan-India"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "dobIso",
+        "minAgeFilter",
+        "maxAgeFilter",
+        "distanceTier",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Swipe": {
+      "title": "Swipe",
+      "description": "Swipe decision from one user toward another.",
+      "type": "object",
+      "properties": {
+        "fromUid": { "type": "string" },
+        "toUid": { "type": "string" },
+        "action": {
+          "type": "string",
+          "enum": ["like", "super_like", "pass"]
+        },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromUid", "toUid", "action", "createdAt", "updatedAt"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Mutual match between two users keyed by sorted UID pair.",
+      "type": "object",
+      "properties": {
+        "memberUids": { "type": "array" },
+        "status": {
+          "type": "string",
+          "enum": ["active", "unmatched"]
+        },
+        "lastMessageText": { "type": "string" },
+        "lastSenderId": { "type": "string" },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["memberUids", "status", "lastMessageText", "lastSenderId", "createdAt", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Real-time private message inside a mutual match.",
+      "type": "object",
+      "properties": {
+        "matchId": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "imagePayload": { "type": "string" },
+        "moderationAcknowledged": { "type": "boolean" },
+        "readBy": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["matchId", "memberUids", "senderId", "text", "moderationAcknowledged", "readBy", "createdAt", "updatedAt"]
+    },
+    "UserBlock": {
+      "title": "UserBlock",
+      "description": "Owner-scoped block record.",
+      "type": "object",
+      "properties": {
+        "blockerUid": { "type": "string" },
+        "blockedUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["blockerUid", "blockedUid", "createdAt"]
+    },
+    "SafetyReport": {
+      "title": "SafetyReport",
+      "description": "Immutable safety/moderation report submitted by a user.",
+      "type": "object",
+      "properties": {
+        "reporterUid": { "type": "string" },
+        "reportedUid": { "type": "string" },
+        "reason": {
+          "type": "string",
+          "enum": ["Harassment", "Fake Profile", "Inappropriate Content", "Underage Concern", "Spam"]
+        },
+        "details": { "type": "string" },
+        "contextType": {
+          "type": "string",
+          "enum": ["profile", "chat", "image"]
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterUid", "reportedUid", "reason", "details", "contextType", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public discovery-safe user profiles."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/PrivateAccount" },
+      "description": "Owner-only PII and filter preferences."
+    },
+    "/swipes/{swipeId}": {
+      "schema": { "$ref": "#/entities/Swipe" },
+      "description": "Swipe actions keyed by {fromUid}_{toUid}."
+    },
+    "/matches/{matchId}": {
+      "schema": { "$ref": "#/entities/Match" },
+      "description": "Mutual matches keyed by sorted {minUid}_{maxUid}."
+    },
+    "/matches/{matchId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Private chat messages between matched members."
+    },
+    "/blocks/{blockId}": {
+      "schema": { "$ref": "#/entities/UserBlock" },
+      "description": "User block records keyed by {blockerUid}_{blockedUid}."
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/SafetyReport" },
+      "description": "User safety and moderation reports."
+    }
+  }
+}

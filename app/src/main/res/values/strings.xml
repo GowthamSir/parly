@@ -1,3 +1,11 @@
 <resources>
     <string name="app_name">PAIRLY</string>
+    <string name="tagline">Authentic queer connections across India</string>
+    <string name="welcome_privacy_note">18+ adults only. Your email and exact location are never shared.</string>
+    <string name="continue_with_google">Continue with Google</string>
+    <string name="error_underage">PAIRLY is strictly for adults aged 18 and above.</string>
+    <string name="nav_discover">Discover</string>
+    <string name="nav_matches">Matches</string>
+    <string name="nav_chats">Chats</string>
+    <string name="nav_profile">Profile</string>
 </resources>

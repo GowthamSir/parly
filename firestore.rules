@@ -1,0 +1,351 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidStringList(arr, maxLen, maxItemLen) {
+      return arr is list &&
+             arr.size() <= maxLen &&
+             (arr.size() == 0 || (arr[0] is string && arr[0].size() <= maxItemLen));
+    }
+
+    function isValidPromptList(arr) {
+      return arr is list &&
+             arr.size() <= 5 &&
+             (arr.size() == 0 || (
+               arr[0] is map &&
+               arr[0].keys().hasAll(['question', 'answer']) &&
+               arr[0].keys().hasOnly(['question', 'answer']) &&
+               arr[0].question is string && arr[0].question.size() <= 140 &&
+               arr[0].answer is string && arr[0].answer.size() <= 300
+             ));
+    }
+
+    // --- ENTITY VALIDATION HELPERS ---
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 50 &&
+             data.age is int && data.age >= 18 && data.age <= 100 &&
+             data.birthYear is int && data.birthYear >= 1920 && data.birthYear <= (request.time.date().year() - 18) &&
+             data.city is string && data.city.size() >= 2 && data.city.size() <= 60 &&
+             data.state is string && data.state.size() >= 2 && data.state.size() <= 60 &&
+             data.bio is string && data.bio.size() <= 500 &&
+             data.relationshipPreference in ['Long-term', 'Dating', 'Friends', 'Exploring', 'Open to all'] &&
+             isValidStringList(data.interests, 12, 40) &&
+             isValidStringList(data.hobbies, 12, 40) &&
+             isValidStringList(data.languages, 10, 40) &&
+             isValidPromptList(data.prompts) &&
+             isValidStringList(data.photos, 6, 160000) &&
+             data.hidden is bool &&
+             data.incognito is bool &&
+             data.adultVerified is bool && data.adultVerified == true &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidPrivateAccount(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 200)) &&
+             data.dobIso is string && data.dobIso.size() == 10 && data.dobIso.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+             data.minAgeFilter is int && data.minAgeFilter >= 18 && data.minAgeFilter <= 80 &&
+             data.maxAgeFilter is int && data.maxAgeFilter >= data.minAgeFilter && data.maxAgeFilter <= 100 &&
+             data.distanceTier in ['Same City', 'Same State', 'Pan-India'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSwipe(data) {
+      return data.fromUid is string && data.fromUid.size() >= 1 && data.fromUid.size() <= 128 &&
+             data.toUid is string && data.toUid.size() >= 1 && data.toUid.size() <= 128 &&
+             data.fromUid != data.toUid &&
+             data.action in ['like', 'super_like', 'pass'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMatch(data) {
+      return data.memberUids is list &&
+             data.memberUids.size() == 2 &&
+             data.memberUids[0] is string && data.memberUids[0].size() >= 1 && data.memberUids[0].size() <= 128 &&
+             data.memberUids[1] is string && data.memberUids[1].size() >= 1 && data.memberUids[1].size() <= 128 &&
+             data.memberUids[0] != data.memberUids[1] &&
+             data.status in ['active', 'unmatched'] &&
+             data.lastMessageText is string && data.lastMessageText.size() <= 500 &&
+             data.lastSenderId is string && data.lastSenderId.size() <= 128 &&
+             (!('lastMessageAt' in data) || (data.lastMessageAt is timestamp && data.lastMessageAt <= request.time)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMessage(data) {
+      return data.matchId is string && isValidId(data.matchId) &&
+             data.memberUids is list && data.memberUids.size() == 2 &&
+             data.memberUids[0] is string && data.memberUids[1] is string &&
+             data.senderId is string && data.senderId.size() >= 1 && data.senderId.size() <= 128 &&
+             data.senderId in data.memberUids &&
+             data.text is string && data.text.size() <= 1000 &&
+             (!('imagePayload' in data) || (data.imagePayload is string && data.imagePayload.size() <= 160000)) &&
+             (data.text.size() > 0 || ('imagePayload' in data && data.imagePayload.size() > 0)) &&
+             data.moderationAcknowledged is bool &&
+             data.readBy is list && data.readBy.size() <= 2 &&
+             (data.readBy.size() == 0 || data.readBy[0] is string) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidBlock(data) {
+      return data.blockerUid is string && data.blockerUid.size() >= 1 && data.blockerUid.size() <= 128 &&
+             data.blockedUid is string && data.blockedUid.size() >= 1 && data.blockedUid.size() <= 128 &&
+             data.blockerUid != data.blockedUid &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidReport(data) {
+      return data.reporterUid is string && data.reporterUid.size() >= 1 && data.reporterUid.size() <= 128 &&
+             data.reportedUid is string && data.reportedUid.size() >= 1 && data.reportedUid.size() <= 128 &&
+             data.reporterUid != data.reportedUid &&
+             data.reason in ['Harassment', 'Fake Profile', 'Inappropriate Content', 'Underage Concern', 'Spam'] &&
+             data.details is string && data.details.size() <= 500 &&
+             data.contextType in ['profile', 'chat', 'image'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // --- COLLECTION RULES ---
+
+    // 1. Public discovery-safe profiles (no email, phone, or GPS)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) &&
+                    (resource == null || userId == request.auth.uid || existing().hidden == false);
+
+      allow list: if isSignedIn() && (
+                     existing().userId == request.auth.uid ||
+                     (existing().hidden == false && existing().incognito == false && existing().adultVerified == true)
+                   );
+
+      allow create: if isSignedIn() && isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().keys().hasAll([
+                         'userId', 'displayName', 'age', 'birthYear', 'city', 'state',
+                         'bio', 'relationshipPreference', 'interests', 'hobbies', 'languages',
+                         'prompts', 'photos', 'hidden', 'incognito', 'adultVerified',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'age', 'birthYear', 'city', 'state',
+                         'bio', 'relationshipPreference', 'interests', 'hobbies', 'languages',
+                         'prompts', 'photos', 'hidden', 'incognito', 'adultVerified',
+                         'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isSignedIn() && isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'age', 'birthYear', 'city', 'state',
+                         'bio', 'relationshipPreference', 'interests', 'hobbies', 'languages',
+                         'prompts', 'photos', 'hidden', 'incognito', 'adultVerified', 'updatedAt'
+                       ]);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+
+      // 2. Owner-only Private Account & PII
+      match /private/{docId} {
+        allow get, list: if isSignedIn() && request.auth.uid == userId;
+
+        allow create: if isSignedIn() && isValidId(userId) && isValidId(docId) &&
+                         request.auth.uid == userId &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll([
+                           'userId', 'dobIso', 'minAgeFilter', 'maxAgeFilter', 'distanceTier',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'email', 'dobIso', 'minAgeFilter', 'maxAgeFilter', 'distanceTier',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidPrivateAccount(incoming());
+
+        allow update: if isSignedIn() && isValidId(userId) && isValidId(docId) &&
+                         isValidPrivateAccount(incoming()) &&
+                         request.auth.uid == userId &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'email', 'dobIso', 'minAgeFilter', 'maxAgeFilter', 'distanceTier', 'updatedAt'
+                         ]);
+
+        allow delete: if isSignedIn() && isValidId(userId) && isValidId(docId) && request.auth.uid == userId;
+      }
+    }
+
+    // 3. Swipes keyed by {fromUid}_{toUid}
+    match /swipes/{swipeId} {
+      allow get: if isSignedIn() && isValidId(swipeId) && (
+                    resource == null
+                      ? (swipeId.matches('^' + request.auth.uid + '_.*$') || swipeId.matches('^.*_' + request.auth.uid + '$'))
+                      : (existing().fromUid == request.auth.uid || (existing().toUid == request.auth.uid && existing().action in ['like', 'super_like']))
+                  );
+
+      allow list: if isSignedIn() && (
+                     existing().fromUid == request.auth.uid ||
+                     (existing().toUid == request.auth.uid && existing().action in ['like', 'super_like'])
+                   );
+
+      allow create: if isSignedIn() && isValidId(swipeId) &&
+                       incoming().fromUid == request.auth.uid &&
+                       swipeId == incoming().fromUid + '_' + incoming().toUid &&
+                       incoming().keys().hasAll(['fromUid', 'toUid', 'action', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['fromUid', 'toUid', 'action', 'createdAt', 'updatedAt']) &&
+                       isValidSwipe(incoming()) &&
+                       exists(/databases/$(database)/documents/users/$(incoming().toUid));
+
+      allow update: if isSignedIn() && isValidId(swipeId) &&
+                       isValidSwipe(incoming()) &&
+                       existing().fromUid == request.auth.uid &&
+                       incoming().fromUid == existing().fromUid &&
+                       incoming().toUid == existing().toUid &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['action', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(swipeId) &&
+                       (existing().fromUid == request.auth.uid || existing().toUid == request.auth.uid);
+    }
+
+    // 4. Mutual Matches keyed by sorted {minUid}_{maxUid}
+    match /matches/{matchId} {
+      allow get: if isSignedIn() && isValidId(matchId) && (
+                    resource == null
+                      ? (matchId.matches('^' + request.auth.uid + '_.*$') || matchId.matches('^.*_' + request.auth.uid + '$'))
+                      : (request.auth.uid in existing().memberUids)
+                  );
+
+      allow list: if isSignedIn() && request.auth.uid in existing().memberUids;
+
+      allow create: if isSignedIn() && isValidId(matchId) &&
+                       isValidMatch(incoming()) &&
+                       request.auth.uid in incoming().memberUids &&
+                       incoming().status == 'active' &&
+                       incoming().memberUids[0] < incoming().memberUids[1] &&
+                       matchId == incoming().memberUids[0] + '_' + incoming().memberUids[1] &&
+                       incoming().keys().hasAll([
+                         'memberUids', 'status', 'lastMessageText', 'lastSenderId', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'memberUids', 'status', 'lastMessageText', 'lastSenderId', 'lastMessageAt', 'createdAt', 'updatedAt'
+                       ]) &&
+                       getAfter(/databases/$(database)/documents/swipes/$(incoming().memberUids[0] + '_' + incoming().memberUids[1])).data.action in ['like', 'super_like'] &&
+                       getAfter(/databases/$(database)/documents/swipes/$(incoming().memberUids[1] + '_' + incoming().memberUids[0])).data.action in ['like', 'super_like'];
+
+      allow update: if isSignedIn() && isValidId(matchId) &&
+                       isValidMatch(incoming()) &&
+                       request.auth.uid in existing().memberUids &&
+                       existing().status == 'active' &&
+                       incoming().memberUids == existing().memberUids &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         (incoming().status == 'active' &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['lastMessageText', 'lastSenderId', 'lastMessageAt', 'updatedAt'])) ||
+                         (incoming().status == 'unmatched' &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+                       );
+
+      allow delete: if isSignedIn() && isValidId(matchId) && request.auth.uid in existing().memberUids;
+
+      // 5. Real-time Private Messages (mutually matched users only)
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidId(matchId) && isValidId(messageId) &&
+                      (resource == null || request.auth.uid in existing().memberUids);
+
+        allow list: if isSignedIn() && request.auth.uid in existing().memberUids;
+
+        allow create: if isSignedIn() && isValidId(matchId) && isValidId(messageId) &&
+                         isValidMessage(incoming()) &&
+                         incoming().matchId == matchId &&
+                         incoming().senderId == request.auth.uid &&
+                         request.auth.uid in incoming().memberUids &&
+                         incoming().keys().hasAll([
+                           'matchId', 'memberUids', 'senderId', 'text',
+                           'moderationAcknowledged', 'readBy', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'matchId', 'memberUids', 'senderId', 'text', 'imagePayload',
+                           'moderationAcknowledged', 'readBy', 'createdAt', 'updatedAt'
+                         ]) &&
+                         get(/databases/$(database)/documents/matches/$(matchId)).data.status == 'active' &&
+                         get(/databases/$(database)/documents/matches/$(matchId)).data.memberUids == incoming().memberUids;
+
+        allow update: if isSignedIn() && isValidId(matchId) && isValidId(messageId) &&
+                         isValidMessage(incoming()) &&
+                         request.auth.uid in existing().memberUids &&
+                         incoming().matchId == existing().matchId &&
+                         incoming().memberUids == existing().memberUids &&
+                         incoming().senderId == existing().senderId &&
+                         incoming().text == existing().text &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['readBy', 'updatedAt']);
+
+        allow delete: if isSignedIn() && isValidId(matchId) && isValidId(messageId) &&
+                         request.auth.uid in existing().memberUids;
+      }
+    }
+
+    // 6. User Blocks keyed by {blockerUid}_{blockedUid}
+    match /blocks/{blockId} {
+      allow get: if isSignedIn() && isValidId(blockId) && (
+                    resource == null
+                      ? blockId.matches('^' + request.auth.uid + '_.*$')
+                      : existing().blockerUid == request.auth.uid
+                  );
+
+      allow list: if isSignedIn() && existing().blockerUid == request.auth.uid;
+
+      allow create: if isSignedIn() && isValidId(blockId) &&
+                       incoming().blockerUid == request.auth.uid &&
+                       blockId == incoming().blockerUid + '_' + incoming().blockedUid &&
+                       incoming().keys().hasAll(['blockerUid', 'blockedUid', 'createdAt']) &&
+                       incoming().keys().hasOnly(['blockerUid', 'blockedUid', 'createdAt']) &&
+                       isValidBlock(incoming());
+
+      allow delete: if isSignedIn() && isValidId(blockId) && existing().blockerUid == request.auth.uid;
+    }
+
+    // 7. Safety & Moderation Reports (write-once by reporter)
+    match /reports/{reportId} {
+      allow get: if isSignedIn() && isValidId(reportId) &&
+                    (resource == null || existing().reporterUid == request.auth.uid);
+
+      allow list: if isSignedIn() && existing().reporterUid == request.auth.uid;
+
+      allow create: if isSignedIn() && isValidId(reportId) &&
+                       incoming().reporterUid == request.auth.uid &&
+                       incoming().keys().hasAll(['reporterUid', 'reportedUid', 'reason', 'details', 'contextType', 'createdAt']) &&
+                       incoming().keys().hasOnly(['reporterUid', 'reportedUid', 'reason', 'details', 'contextType', 'createdAt']) &&
+                       isValidReport(incoming());
+    }
+  }
+}
